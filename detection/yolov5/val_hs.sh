@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES='1' python val.py --weights runs/hs/exp/weights/best.pt --data data/hs_coco.yaml --project runs/hs/

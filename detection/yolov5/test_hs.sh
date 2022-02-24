@@ -1,0 +1,1 @@
+python detect.py  --source "/data/dataset/mot/*/*/*/*.jpg"  --weights runs/hs/exp/weights/best.pt --save-txt --save-conf --nosave

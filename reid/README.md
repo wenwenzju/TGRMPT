@@ -1,0 +1,1 @@
+Reid method. Currently, model used in DeepSort.

@@ -1,0 +1,1 @@
+python -m torch.distributed.launch --nproc_per_node 8 train.py --noval --resume --weights pretrained_model/yolov5l6.pt --batch-size 256 --workers 64 --data data/hs_coco.yaml --project runs/body/

@@ -1,0 +1,22 @@
+_BASE_: ../../../configs/Base-bagtricks.yml
+
+MODEL:
+  BACKBONE:
+    DEPTH: 18x
+    FEAT_DIM: 512
+
+DATASETS:
+  NAMES: ("ZJRR",)
+  TESTS: ("ZJRR",)
+  IMAGE_ROOT: /data/dataset/iros2022/reid/body_images
+  INDEX_PREFIX: /data/dataset/iros2022/reid/index_txt/iros2022_fisheye2
+ 
+SOLVER:
+  WARMUP_ITERS: 0
+  MAX_EPOCH: 10
+  STEPS: [5, ]
+
+  CHECKPOINT_PERIOD: 10
+
+TEST:
+  EVAL_PERIOD: 10

@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES='2' python val.py --weights runs/wb/exp/weights/best.pt --data data/wb_coco.yaml --project runs/wb/

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Detection confidence threshold. Disregard all detections that have a confidence lower than this value.
+# The first value is whole body detection confidence threshold, and the second is for head shoulder.
 min_confidence="0.8 0"
 
 # Threshold on the detection bounding box height. Detections with height smaller than this value are disregarded.
@@ -25,50 +26,40 @@ videos=(
   02_black_black_fisheye_head_front
   02_blue_black_fisheye_head_front
   02_color_gray_fisheye_head_front
-  02_origial_black_fisheye_head_front
+  02_original_black_fisheye_head_front
   02_suit_black_fisheye_head_front
-  04_black_black_fisheye_head_front
-  04_blue_black_fisheye_head_front
-  04_origial_black_fisheye_head_front
-  04_suit_black_fisheye_head_front
-  04_white_black_fisheye_head_front
   06_color_gray_fisheye_head_front
   06_gray_gray_fisheye_head_front
-  06_origial_black_fisheye_head_front
+  06_original_black_fisheye_head_front
   06_red_gray_fisheye_head_front
   06_suit_black_fisheye_head_front
-  08_black_black_fisheye_head_front
-  08_blue_black_fisheye_head_front
-  08_color_gray_fisheye_head_front
-  08_gray_gray_fisheye_head_front
-  08_origial_black_fisheye_head_front
   10_black_black_fisheye_head_front
   10_blue_black_fisheye_head_front
   10_gray_gray_fisheye_head_front
-  10_origial_black_fisheye_head_front
+  10_original_black_fisheye_head_front
   10_red_gray_fisheye_head_front
   12_blue_black_fisheye_head_front
   12_color_gray_fisheye_head_front
-  12_origial_black_fisheye_head_front
+  12_original_black_fisheye_head_front
   12_suit_black_fisheye_head_front
   12_white_black_fisheye_head_front
   14_color_gray_fisheye_head_front
   14_gray_gray_fisheye_head_front
-  14_origial_black_fisheye_head_front
+  14_original_black_fisheye_head_front
   14_red_gray_fisheye_head_front
   14_suit_black_fisheye_head_front
   16_blue_black_fisheye_head_front
   16_color_black_fisheye_head_front
-  16_origial_black_fisheye_head_front
+  16_original_black_fisheye_head_front
   16_red_gray_fisheye_head_front
   16_suit_black_fisheye_head_front
   18_blue_black_fisheye_head_front
   18_gray_gray_fisheye_head_front
-  18_origial_black_fisheye_head_front
+  18_original_black_fisheye_head_front
   18_red_gray_fisheye_head_front
   18_suit_black_fisheye_head_front
   20_gray_gray_fisheye_head_front
-  20_origial_black_fisheye_head_front
+  20_original_black_fisheye_head_front
   20_red_gray_fisheye_head_front
   20_suit_black_fisheye_head_front
   20_white_black_fisheye_head_front
@@ -109,17 +100,16 @@ do
       read -u1000
       {
         echo "Process ${video} using ${tracker_name}"
-        python deep_sort_app.py --sequence_dir ${gt_base}/iros2022-fisheye-test/${video} \
-            --detection_file ${gt_base}/iros2022-fisheye-test/${video}/embedding/embedding_wb.pkl ${gt_base}/iros2022-fisheye-test/${video}/embedding/embedding_hs.pkl \
-            --output_file ${tracker_base}/iros2022-fisheye-test/${tracker_name}/data/${video}.txt \
+        if [[ ${video} =~ "original" ]]; then
+          cloth_type=original
+        else
+          cloth_type=similar
+        fi
+        python deep_sort_app.py --sequence_dir ${gt_base}/iros2022-fisheye-${cloth_type}-test/${video} \
+            --detection_file ${gt_base}/iros2022-fisheye-${cloth_type}-test/${video}/embedding/embedding_wb.pkl ${gt_base}/iros2022-fisheye-${cloth_type}-test/${video}/embedding/embedding_hs.pkl \
+            --output_file ${tracker_base}/iros2022-fisheye-${cloth_type}-test/${tracker_name}/data/${video}.txt \
             --min_confidence ${min_confidence} --min_detection_height ${min_detection_height} --max_cosine_distance ${max_cosine_distance} \
             --nn_budget ${nn_budget} --max_age ${max_age} --display False
-
-        if [[ ${video} =~ "origial" ]]; then
-          cp ${tracker_base}/iros2022-fisheye-test/${tracker_name}/data/${video}.txt ${tracker_base}/iros2022-fisheye-tradition-test/${tracker_name}/data/${video}.txt
-        else
-          cp ${tracker_base}/iros2022-fisheye-test/${tracker_name}/data/${video}.txt ${tracker_base}/iros2022-fisheye-similar-test/${tracker_name}/data/${video}.txt
-        fi
         echo >&1000
       }&
 

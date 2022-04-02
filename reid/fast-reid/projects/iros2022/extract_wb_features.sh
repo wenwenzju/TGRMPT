@@ -1,7 +1,7 @@
 export CUDA_VISIBLE_DEVICES=$1
-config=configs/head_shoulder.yml
-log_dir=bot_r18_extract_mot_features_head_shoulder
-model_dir=bot_r18_train_on_iros2022_fisheye_head_shoulder/model_best.pth
+config=configs/whole_body.yml
+log_dir=bot_r18_extract_mot_features_whole_body
+model_dir=bot_r18_train_on_iros2022_fisheye_whole_body/model_best.pth
 
 videos=(
   02_black_black_fisheye_head_front
@@ -68,7 +68,7 @@ do
     echo "Process ${video}"
     seq=../../../../dataset/mot/mot17/${video}
     python extract_mot_features.py --config-file ${config} --mot ${seq} \
-        --detection ${seq}/detection/det_hs.txt --output ${seq}/embedding/embedding_hs.pkl \
+        --detection ${seq}/detection/det_wb.txt --output ${seq}/embedding/embedding_wb.pkl \
         --opts MODEL.WEIGHTS logs/${model_dir} OUTPUT_DIR logs/${log_dir}
     echo >&1000
   }&

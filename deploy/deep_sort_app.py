@@ -7,8 +7,6 @@ import os
 import cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment as linear_assignment
-import multiprocessing as mp
-import sharedmem
 
 from application_util import visualization
 from deep_sort import nn_matching
@@ -57,7 +55,7 @@ def iou(bbox, candidates):
     return area_intersection / area_candidates, area_candidates
 
 
-def create_detections_single_thread(detectors, extractors, image_names):
+def create_detections(detectors, extractors, image_names):
     detect_wb, detect_hs = detectors
     extract_wb, extract_hs = extractors
 
@@ -66,102 +64,6 @@ def create_detections_single_thread(detectors, extractors, image_names):
         image = cv2.cvtColor(image_o, cv2.COLOR_BGR2RGB)
         wb_bbx, wb_conf = detect_wb(image)
         hs_bbx, hs_conf = detect_hs(image)
-        detected_bbx = []
-        detected_conf = []
-
-        if len(hs_bbx) == 0 and len(wb_bbx) > 0:
-            for box, conf in zip(wb_bbx, wb_conf):
-                detected_bbx.append([box])
-                detected_conf.append([conf])
-        elif len(wb_bbx) > 0:
-            cost_matrix = np.zeros((len(wb_bbx), len(hs_bbx)))
-            for row in range(len(wb_bbx)):
-                iou_score, area = iou(wb_bbx[row], hs_bbx)
-                iou_score = 1. - iou_score
-                idx = np.where(iou_score <= 0.4)[0]
-                if len(idx) > 1:
-                    # If there are more than one hs detection intersect with wb detection of score no more than 0.4, we select one hs detection with max area
-                    to_keep = idx[area[idx].argmax()]
-                    for i in idx:
-                        if i != to_keep:
-                            iou_score[i] = 0.41
-                cost_matrix[row, :] = iou_score
-
-            # Handle one hs detection matched to more than one wb detection
-            areas = np.array(wb_bbx)[:, 2:].prod(axis=1)
-            for col in range(len(hs_bbx)):
-                iou_score = cost_matrix[:, col]
-                idx = np.where(iou_score <= 0.4)[0]
-                if len(idx) > 1:
-                    to_keep = idx[areas[idx].argmin()]
-                    for i in idx:
-                        if i != to_keep:
-                            cost_matrix[i, col] = 0.41
-
-            row_indices, col_indices = linear_assignment(cost_matrix)
-            matches, unmatched_wb, unmatched_hs = [], [], []
-            unmatched_hs = [col for col in range(len(hs_bbx)) if col not in col_indices ]
-            unmatched_wb = [row for row in range(len(wb_bbx)) if row not in row_indices]
-            for row, col in zip(row_indices, col_indices):
-                if cost_matrix[row, col] > 0.4:
-                    unmatched_wb.append(row)
-                    unmatched_hs.append(col)
-                else:
-                    matches.append((row, col))
-            for match in matches:
-                wb_idx, hs_idx = match
-                detected_bbx.append([wb_bbx[wb_idx], hs_bbx[hs_idx]])
-                detected_conf.append([wb_conf[wb_idx], hs_conf[hs_idx]])
-            for wb in unmatched_wb:
-                detected_bbx.append([wb_bbx[wb]])
-                detected_conf.append([wb_conf[wb]])
-
-        detected_wb = [box[0] for box in detected_bbx]
-        detected_hs = [box[1] for box in detected_bbx if len(box) > 1]
-        wb_features = extract_wb(image, detected_wb)
-        hs_features = extract_hs(image, detected_hs)
-        detections = []
-        hs_idx = 0
-        for i in range(len(detected_bbx)):
-            if len(detected_bbx[i]) > 1:
-                detections.append(Detection(detected_bbx[i], detected_conf[i], [wb_features[i], hs_features[hs_idx]]))
-                hs_idx += 1
-            else:
-                detections.append(Detection(detected_bbx[i], detected_conf[i], [wb_features[i]]))
-        yield detections
-
-
-def detect(detector, image, image_ready, result):
-    while True:
-        if image_ready.get():
-            result.put(detector(image))
-
-
-def create_detections_multi_thread(detectors, extractors, image_names):
-    detect_wb, detect_hs = detectors
-    extract_wb, extract_hs = extractors
-    wb_image_ready = mp.Queue(maxsize=1)
-    hs_image_ready = mp.Queue(maxsize=1)
-    wb_det_res = mp.Queue(maxsize=1)
-    hs_det_res = mp.Queue(maxsize=1)
-
-    image_o = cv2.imread(image_names[0])
-    image_share = sharedmem.empty(image_o.shape, image_o.dtype)
-    wb_det_thread = mp.Process(target=detect, args=(detect_wb, image_share, wb_image_ready, wb_det_res))
-    hs_det_thread = mp.Process(target=detect, args=(detect_hs, image_share, hs_image_ready, hs_det_res))
-    wb_det_thread.start()
-    hs_det_thread.start()
-
-    for img_file in image_names:
-        image_o = cv2.imread(img_file)
-        image = cv2.cvtColor(image_o, cv2.COLOR_BGR2RGB)
-        image_share[:] = image.copy()
-        wb_image_ready.put(1)
-        hs_image_ready.put(1)
-
-        wb_bbx, wb_conf = wb_det_res.get()
-        hs_bbx, hs_conf = hs_det_res.get()
-
         detected_bbx = []
         detected_conf = []
 
@@ -317,8 +219,7 @@ def run(sequence_dir, detection_weights, embedding_weights, min_confidence,
     extract_hs = Embedding(embedding_weights[1])
     image_names = list(seq_info["image_filenames"].values())
     image_names.sort()
-    # detection_generator = create_detections_single_thread((detect_wb, detect_hs), (extract_wb, extract_hs), image_names)
-    detection_generator = create_detections_multi_thread((detect_wb, detect_hs), (extract_wb, extract_hs), image_names)
+    detection_generator = create_detections((detect_wb, detect_hs), (extract_wb, extract_hs), image_names)
     metric = nn_matching.NearestNeighborDistanceMetric(
         "cosine", max_cosine_distance, nn_budget)
     tracker = Tracker(metric, max_age=max_age)
@@ -405,7 +306,7 @@ def parse_args():
     parser.add_argument(
         "--min_confidence", help="Detection confidence threshold. Disregard "
         "all detections that have a confidence lower than this value.", nargs='+',
-        default=0.8, type=float)
+        default=[0.8, 0], type=float)
     parser.add_argument(
         "--min_detection_height", help="Threshold on the detection bounding "
         "box height. Detections with height smaller than this value are "

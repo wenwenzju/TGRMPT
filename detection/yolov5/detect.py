@@ -18,7 +18,6 @@ import sys
 from pathlib import Path
 
 import cv2
-import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -73,7 +72,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
     # Directories
     save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
-    (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    #(save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     # Load model
     device = select_device(device)
@@ -104,8 +103,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
     save_results = []
     for ii,(path, im, im0s, vid_cap, s) in enumerate(dataset):
-        if ii>10:
-            break
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -118,18 +115,11 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         # Inference
         visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
         pred = model(im, augment=augment, visualize=visualize)
-        pred_np = pred.cpu().numpy()
-        np.savetxt("onnx_pred.txt", pred_np[0])
-        print(pred.shape)
-        print(pred.dtype)
-        print(pred)
         t3 = time_sync()
         dt[1] += t3 - t2
 
         # NMS
-        # pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
-        pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms)
-        print(pred)
+        pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
         dt[2] += time_sync() - t3
 
         # Second-stage classifier (optional)
@@ -167,11 +157,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 for *xyxy, conf, cls in reversed(det):
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                     line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
-                    # xywh to x1y1wh
                     x,y,w,h = xywh
-                    x1 =x-w/2
-                    y1 =y-h/2
-                    save_results.append(','.join(map(str,[save_path.split('.')[0].split('/')[-1],-1,int(x1*img_w),int(y1*img_h),
+                    x -= w/2
+                    y -= h/2
+                    save_results.append(','.join(map(str,[save_path.split('.')[0].split('/')[-1],-1,int(x*img_w),int(y*img_h),
                                                           int(w*img_w),int(h*img_h),conf.item(),0,0,0]))+'\n')
                     if save_txt:  # Write to file
                         os.makedirs(os.path.dirname(txt_path+ '.txt'),exist_ok=True)
@@ -214,8 +203,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer[i].write(im0)
 
-
-    save_results_path = os.path.join(source.replace('img1','detection'),'gt_%s.txt'%(name))
+    task_name = 'hs' if 'hs' in weights[0] else 'wb'
+    save_results_path = os.path.join(source.replace('img1','detection'),'det_%s.txt'%(task_name))
     open(save_results_path,'w').writelines(save_results)
 
 
@@ -234,9 +223,9 @@ def parse_opt():
     parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'yolov5s.pt', help='model path(s)')
     parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0, help='confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
-    parser.add_argument('--max-det', type=int, default=4, help='maximum detections per image')
+    parser.add_argument('--conf-thres', type=float, default=0.4, help='confidence threshold')
+    parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
+    parser.add_argument('--max-det', type=int, default=20, help='maximum detections per image')
     parser.add_argument('--device', default='1', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
@@ -248,7 +237,7 @@ def parse_opt():
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--visualize', action='store_true', help='visualize features')
     parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--project', default=ROOT / 'data/dataset/hs_mot_label', help='save results to project/name')
+    parser.add_argument('--project', default='/data/dataset/hs_mot_label', help='save results to project/name')
     parser.add_argument('--name', default='exp', help='save results to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--line-thickness', default=3, type=int, help='bounding box thickness (pixels)')
